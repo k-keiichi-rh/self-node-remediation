@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -34,7 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	clientset "k8s.io/client-go/kubernetes"
 	"github.com/medik8s/self-node-remediation/api/v1alpha1"
 	"github.com/medik8s/self-node-remediation/pkg/reboot"
 	"github.com/medik8s/self-node-remediation/pkg/utils"
@@ -96,6 +97,7 @@ type SelfNodeRemediationReconciler struct {
 	//40s of grace period for the node to reappear before it deletes the pods.
 	//see here: https://github.com/kubernetes/kubernetes/blob/7a0638da76cb9843def65708b661d2c6aa58ed5a/pkg/controller/podgc/gc_controller.go#L43-L47
 	RestoreNodeAfter time.Duration
+	KubeClient       clientset.Interface
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -578,6 +580,27 @@ func (r *SelfNodeRemediationReconciler) markNodeAsUnschedulable(node *v1.Node) (
 		r.logger.Info("waiting for unschedulable taint to appear", "node name", node.Name)
 		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 	}
+
+	nodeCondition := v1.NodeCondition{
+		Type:                v1.NodeReady,
+		Status:              v1.ConditionFalse,
+		Reason:              "NodeFencing",
+		Message:             "out-of-service taint",
+		LastTransitionTime:  metav1.Now(),
+		LastHeartbeatTime:   metav1.NewTime(time.Now()),
+	}
+	patch, err := json.Marshal(map[string]interface{}{
+                "status": map[string]interface{}{
+                        "conditions": []v1.NodeCondition{nodeCondition},
+                },
+        })
+        if err != nil {
+		return ctrl.Result{}, err
+        }
+        _, err = r.KubeClient.CoreV1().Nodes().PatchStatus(context.TODO(), string(node.Name), patch)
+        if err != nil {
+		return ctrl.Result{}, err
+        }
 
 	node.Spec.Unschedulable = true
 	r.logger.Info("Marking node as unschedulable", "node name", node.Name)

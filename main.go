@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+        clientset "k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -283,6 +284,11 @@ func initSelfNodeRemediationAgent(mgr manager.Manager) {
 	setupLog.Info("Time to assume that unhealthy node has been rebooted", "time", timeToAssumeNodeRebooted)
 
 	restoreNodeAfter := 90 * time.Second
+	kubeClient, err := clientset.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to get kubeClient")
+		os.Exit(1)
+	}
 	pprReconciler := &controllers.SelfNodeRemediationReconciler{
 		Client:                       mgr.GetClient(),
 		Log:                          ctrl.Log.WithName("controllers").WithName("SelfNodeRemediation"),
@@ -291,6 +297,7 @@ func initSelfNodeRemediationAgent(mgr manager.Manager) {
 		SafeTimeToAssumeNodeRebooted: timeToAssumeNodeRebooted,
 		MyNodeName:                   myNodeName,
 		RestoreNodeAfter:             restoreNodeAfter,
+		KubeClient:                   kubeClient,
 	}
 
 	if err = pprReconciler.SetupWithManager(mgr); err != nil {
