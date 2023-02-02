@@ -169,7 +169,7 @@ func (r *SelfNodeRemediationReconciler) isFencingCompleted(snr *v1alpha1.SelfNod
 	return snr.Status.Phase != nil && *snr.Status.Phase == fencingCompletedPhase && snr.DeletionTimestamp != nil
 }
 
-func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alpha1.SelfNodeRemediation) (ctrl.Result, error) {
+func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alpha1.SelfNodeRemediation, removeResource func(*v1.Node)) (ctrl.Result, error) {
 	node, err := r.getNodeFromSnr(snr)
 	if err != nil {
 		r.logger.Error(err, "failed to get node", "node name", snr.Name)
@@ -243,6 +243,29 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 
 	r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
 
+	if err = removeResource(node); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	fencingCompleted := fencingCompletedPhase
+	snr.Status.Phase = &fencingCompleted
+	if err := r.Client.Status().Update(context.Background(), snr); err != nil {
+		if apiErrors.IsConflict(err) {
+			// conflicts are expected since all self node remediation deamonset pods are competing on the same requests
+			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+		}
+		r.logger.Error(err, "failed to mark SNR as fencing completed")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alpha1.SelfNodeRemediation) (ctrl.Result, error) {
+	return remediateWithResourceRemoval(snr, removeResourceByResourceDeletion)
+}
+
+func (r *SelfNodeRemediationReconciler) removeResourceByResourceDeletion(node *v1.Node) (ctrl.Result, error) {
 	//fence
 	zero := int64(0)
 	backgroundDeletePolicy := metav1.DeletePropagationBackground
@@ -262,7 +285,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 	namespaces := v1.NamespaceList{}
 	if err := r.Client.List(context.Background(), &namespaces); err != nil {
 		r.logger.Error(err, "failed to list namespaces", err)
-		return ctrl.Result{}, err
+		return err
 	}
 
 	r.logger.Info("starting to delete node resources", "node name", node.Name)
@@ -273,14 +296,14 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 		err = r.Client.DeleteAllOf(context.Background(), pod, deleteOptions)
 		if err != nil {
 			r.logger.Error(err, "failed to delete pods of unhealthy node", "namespace", ns.Name)
-			return ctrl.Result{}, err
+			return err
 		}
 	}
 
 	volumeAttachments := &storagev1.VolumeAttachmentList{}
 	if err := r.Client.List(context.Background(), volumeAttachments); err != nil {
 		r.logger.Error(err, "failed to get volumeAttachments list")
-		return ctrl.Result{}, err
+		return err
 	}
 	forceDeleteOption := &client.DeleteOptions{
 		GracePeriodSeconds: &zero,
@@ -290,25 +313,14 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 			err = r.Client.Delete(context.Background(), &va, forceDeleteOption)
 			if err != nil {
 				r.logger.Error(err, "failed to delete volumeAttachment", "name", va.Name)
-				return ctrl.Result{}, err
+				return err
 			}
 		}
 	}
 
 	r.logger.Info("done deleting node resources", "node name", node.Name)
 
-	fencingCompleted := fencingCompletedPhase
-	snr.Status.Phase = &fencingCompleted
-	if err := r.Client.Status().Update(context.Background(), snr); err != nil {
-		if apiErrors.IsConflict(err) {
-			// conflicts are expected since all self node remediation deamonset pods are competing on the same requests
-			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
-		}
-		r.logger.Error(err, "failed to mark SNR as fencing completed")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return nil
 }
 
 // rebootIfNeeded reboots the node if no reboot was performed so far
