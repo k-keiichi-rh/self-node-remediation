@@ -262,7 +262,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alph
 }
 
 func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alpha1.SelfNodeRemediation) (ctrl.Result, error) {
-	return remediateWithResourceRemoval(snr, removeResourceByResourceDeletion)
+	return r.remediateWithResourceRemoval(snr, r.removeResourceByResourceDeletion)
 }
 
 func (r *SelfNodeRemediationReconciler) removeResourceByResourceDeletion(node *v1.Node) error {
@@ -293,7 +293,7 @@ func (r *SelfNodeRemediationReconciler) removeResourceByResourceDeletion(node *v
 	pod := &v1.Pod{}
 	for _, ns := range namespaces.Items {
 		deleteOptions.Namespace = ns.Name
-		err = r.Client.DeleteAllOf(context.Background(), pod, deleteOptions)
+		err := r.Client.DeleteAllOf(context.Background(), pod, deleteOptions)
 		if err != nil {
 			r.logger.Error(err, "failed to delete pods of unhealthy node", "namespace", ns.Name)
 			return err
@@ -310,7 +310,7 @@ func (r *SelfNodeRemediationReconciler) removeResourceByResourceDeletion(node *v
 	}
 	for _, va := range volumeAttachments.Items {
 		if va.Spec.NodeName == node.Name {
-			err = r.Client.Delete(context.Background(), &va, forceDeleteOption)
+			err := r.Client.Delete(context.Background(), &va, forceDeleteOption)
 			if err != nil {
 				r.logger.Error(err, "failed to delete volumeAttachment", "name", va.Name)
 				return err
