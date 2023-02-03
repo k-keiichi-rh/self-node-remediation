@@ -246,7 +246,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alph
 	if waitTime, err := removeResource(node); err != nil {
 		return ctrl.Result{}, err
 	} else if waitTime != 0 {
-		return ctrl.Result{RequeueAfter: waitTime}, nil}
+		return ctrl.Result{RequeueAfter: waitTime}, nil
 	}
 
 	fencingCompleted := fencingCompletedPhase
