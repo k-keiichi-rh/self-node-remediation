@@ -169,7 +169,7 @@ func (r *SelfNodeRemediationReconciler) isFencingCompleted(snr *v1alpha1.SelfNod
 	return snr.Status.Phase != nil && *snr.Status.Phase == fencingCompletedPhase && snr.DeletionTimestamp != nil
 }
 
-func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alpha1.SelfNodeRemediation, removeResource func(*v1.Node) (time.Duration, error)) (ctrl.Result, error) {
+func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alpha1.SelfNodeRemediation, removeResource func(*v1.Node, *v1alpha1.SelfNodeRemediation) (time.Duration, error)) (ctrl.Result, error) {
 	node, err := r.getNodeFromSnr(snr)
 	if err != nil {
 		r.logger.Error(err, "failed to get node", "node name", snr.Name)
