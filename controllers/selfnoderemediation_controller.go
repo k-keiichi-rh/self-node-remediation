@@ -42,8 +42,8 @@ import (
 )
 
 const (
-	SNRFinalizer          = "self-node-remediation.medik8s.io/snr-finalizer"
-	nhcTimeOutAnnotation  = "remediation.medik8s.io/nhc-timed-out"
+	SNRFinalizer         = "self-node-remediation.medik8s.io/snr-finalizer"
+	nhcTimeOutAnnotation = "remediation.medik8s.io/nhc-timed-out"
 )
 
 var (
