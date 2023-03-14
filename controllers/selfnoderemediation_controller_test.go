@@ -151,6 +151,7 @@ var _ = Describe("snr Controller", func() {
 			BeforeEach(func() {
 				remediationStrategy = selfnoderemediationv1alpha1.ResourceDeletionRemediationStrategy
 				createVolumeAttachment(vaName)
+				k8sClient.ShouldSimulateVaFailure = true
 			})
 
 			AfterEach(func() {
@@ -167,6 +168,10 @@ var _ = Describe("snr Controller", func() {
 				verifyNoWatchdogFood()
 
 				verifySelfNodeRemediationPodDoesntExist()
+
+				verifyVaNotDeleted(vaName)
+
+				k8sClient.ShouldSimulateVaFailure = false
 
 				verifyVaDeleted(vaName)
 
@@ -251,6 +256,20 @@ func verifyVaDeleted(vaName string) {
 		return apierrors.IsNotFound(err)
 
 	}, 5*time.Second, 250*time.Millisecond).Should(BeTrue())
+}
+
+func verifyVaNotDeleted(vaName string) {
+	vaKey := client.ObjectKey{
+		Namespace: namespace,
+		Name:      vaName,
+	}
+
+	EventuallyWithOffset(1, func() bool {
+		va := &storagev1.VolumeAttachment{}
+		err := k8sClient.Get(context.Background(), vaKey, va)
+		return apierrors.IsNotFound(err)
+
+	}, 5*time.Second, 250*time.Millisecond).Should(BeFalse())
 }
 
 func verifySelfNodeRemediationPodDoesntExist() {

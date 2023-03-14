@@ -43,7 +43,6 @@ import (
 
 const (
 	SNRFinalizer          = "self-node-remediation.medik8s.io/snr-finalizer"
-	fencingCompletedPhase = "Fencing-Completed"
 	nhcTimeOutAnnotation  = "remediation.medik8s.io/nhc-timed-out"
 )
 
@@ -61,6 +60,15 @@ var (
 
 	lastSeenSnrNamespace  string
 	wasLastSeenSnrMachine bool
+)
+
+type remediationPhase string
+
+var (
+	fencingStartedPhase      = "Fencing-Started"
+	preRebootCompletedPhase  = "Pre-Reboot-Completed"
+	rebootCompletedPhase     = "Reboot-Completed"
+	fencingCompletedPhase    = "Fencing-Completed"
 )
 
 type UnreconcilableError struct {
@@ -161,8 +169,23 @@ func (r *SelfNodeRemediationReconciler) Reconcile(ctx context.Context, req ctrl.
 	return result, r.updateSnrStatusLastError(snr, err)
 }
 
-func (r *SelfNodeRemediationReconciler) isFencingCompleted(snr *v1alpha1.SelfNodeRemediation) bool {
-	return snr.Status.Phase != nil && *snr.Status.Phase == fencingCompletedPhase && snr.DeletionTimestamp != nil
+func (r *SelfNodeRemediationReconciler) patchSnrStatus(changed, org *v1alpha1.SelfNodeRemediation) error {
+	if err := r.Client.Status().Patch(context.Background(), changed, client.MergeFrom(org)); err != nil {
+		r.logger.Error(err, "failed to patch SNR status")
+		return err
+	}
+	return nil
+}
+
+func (r *SelfNodeRemediationReconciler) getPhase(snr *v1alpha1.SelfNodeRemediation) remediationPhase {
+	if snr.Status.Phase == nil {
+		return fencingStartedPhase
+	}
+	return *snr.Status.Phase
+}
+
+func (r *SelfNodeRemediationReconciler) isAtRemediationPhase(snr *v1alpha1.SelfNodeRemediation, phase remediationPhase) bool {
+	return r.getPhase(snr) == string(phase)
 }
 
 func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alpha1.SelfNodeRemediation) (ctrl.Result, error) {
@@ -172,7 +195,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 		return ctrl.Result{}, err
 	}
 
-	if r.isFencingCompleted(snr) {
+	if r.isAtRemediationPhase(snr, fencingCompletedPhase) && snr.DeletionTimestamp != nil {
 		r.logger.Info("fencing completed, cleaning up")
 		if node.Spec.Unschedulable {
 			node.Spec.Unschedulable = false
@@ -205,39 +228,57 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 
 	r.logger.Info("fencing not completed yet, continuing remediation")
 
-	if !r.isNodeRebootCapable(node) {
-		//use err to trigger exponential backoff
-		return ctrl.Result{}, errors.New("Node is not capable to reboot itself")
+	if r.isAtRemediationPhase(snr, fencingStartedPhase) {
+		r.logger.Info("pre-reboot not completed yet, prepare for rebooting")
+		if !r.isNodeRebootCapable(node) {
+			//use err to trigger exponential backoff
+			return ctrl.Result{}, errors.New("Node is not capable to reboot itself")
+		}
+
+		if !controllerutil.ContainsFinalizer(snr, SNRFinalizer) {
+			return r.addFinalizer(snr)
+		}
+
+		if err = r.addNoExecuteTaint(node); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if !node.Spec.Unschedulable || !utils.TaintExists(node.Spec.Taints, NodeUnschedulableTaint) {
+			return r.markNodeAsUnschedulable(node)
+		}
+
+		if snr.Status.TimeAssumedRebooted.IsZero() {
+			//todo this also updates the node but we don't need it
+			return r.updateSnrStatus(node, snr)
+		}
+		org := snr.DeepCopy()
+		preRebootCompleted := preRebootCompletedPhase
+		snr.Status.Phase = &preRebootCompleted
+		if err := r.patchSnrStatus(snr, org); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
-	if !controllerutil.ContainsFinalizer(snr, SNRFinalizer) {
-		return r.addFinalizer(snr)
-	}
+	if r.isAtRemediationPhase(snr, preRebootCompletedPhase) {
+		r.logger.Info("node reboot not completed yet, start rebooting")
+		if r.MyNodeName == node.Name {
+			// we have a problem on this node, reboot!
+			return r.rebootIfNeeded(snr)
+		}
 
-	if err = r.addNoExecuteTaint(node); err != nil {
-		return ctrl.Result{}, err
-	}
+		wasRebooted, timeLeft := r.wasNodeRebooted(snr)
+		if !wasRebooted {
+			return ctrl.Result{RequeueAfter: timeLeft}, nil
+		}
 
-	if !node.Spec.Unschedulable || !utils.TaintExists(node.Spec.Taints, NodeUnschedulableTaint) {
-		return r.markNodeAsUnschedulable(node)
+		r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
+		org := snr.DeepCopy()
+		rebootCompleted := rebootCompletedPhase
+		snr.Status.Phase = &rebootCompleted
+		if err := r.patchSnrStatus(snr, org); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
-
-	if snr.Status.TimeAssumedRebooted.IsZero() {
-		//todo this also updates the node but we don't need it
-		return r.updateSnrStatus(node, snr)
-	}
-
-	if r.MyNodeName == node.Name {
-		// we have a problem on this node, reboot!
-		return r.rebootIfNeeded(snr)
-	}
-
-	wasRebooted, timeLeft := r.wasNodeRebooted(snr)
-	if !wasRebooted {
-		return ctrl.Result{RequeueAfter: timeLeft}, nil
-	}
-
-	r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
 
 	//fence
 	zero := int64(0)
@@ -293,18 +334,10 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 
 	r.logger.Info("done deleting node resources", "node name", node.Name)
 
+	org := snr.DeepCopy()
 	fencingCompleted := fencingCompletedPhase
 	snr.Status.Phase = &fencingCompleted
-	if err := r.Client.Status().Update(context.Background(), snr); err != nil {
-		if apiErrors.IsConflict(err) {
-			// conflicts are expected since all self node remediation deamonset pods are competing on the same requests
-			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
-		}
-		r.logger.Error(err, "failed to mark SNR as fencing completed")
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, r.patchSnrStatus(snr, org)
 }
 
 // rebootIfNeeded reboots the node if no reboot was performed so far
