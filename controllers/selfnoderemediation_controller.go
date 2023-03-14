@@ -65,10 +65,10 @@ var (
 type remediationPhase string
 
 var (
-	fencingStartedPhase      = "Fencing-Started"
-	preRebootCompletedPhase  = "Pre-Reboot-Completed"
-	rebootCompletedPhase     = "Reboot-Completed"
-	fencingCompletedPhase    = "Fencing-Completed"
+	fencingStartedPhase     remediationPhase = "Fencing-Started"
+	preRebootCompletedPhase remediationPhase = "Pre-Reboot-Completed"
+	rebootCompletedPhase    remediationPhase = "Reboot-Completed"
+	fencingCompletedPhase   remediationPhase = "Fencing-Completed"
 )
 
 type UnreconcilableError struct {
