@@ -522,7 +522,8 @@ func createTerminatingPod() {
 		Image: "bar",
 	}
 	pod.Spec.Containers = []v1.Container{container}
-	pod.ObjectMeta = metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace, DeletionTimestamp: &metav1.Time{}}
+	now := metav1.Now()
+	pod.ObjectMeta = metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace, DeletionTimestamp: &now}
 	ExpectWithOffset(1, k8sClient.Client.Create(context.Background(), pod)).To(Succeed())
 }
 
