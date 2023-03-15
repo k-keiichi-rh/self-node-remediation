@@ -233,7 +233,7 @@ var _ = Describe("snr Controller", func() {
 				// simulate the out-of-service taint by Pod GC Controller:
 				// it has NoExecute effect which evicts self node remediation pod
 				deleteTerminatingPod()
-				deleteVolumeAttachment(vaName)
+				//deleteVolumeAttachment(vaName)
 
 				verifyOutOfServiceTaintRemoved()
 
