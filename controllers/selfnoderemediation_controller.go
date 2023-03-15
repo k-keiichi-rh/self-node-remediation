@@ -185,7 +185,7 @@ func (r *SelfNodeRemediationReconciler) getPhase(snr *v1alpha1.SelfNodeRemediati
 }
 
 func (r *SelfNodeRemediationReconciler) isAtRemediationPhase(snr *v1alpha1.SelfNodeRemediation, phase remediationPhase) bool {
-	return r.getPhase(snr) == string(phase)
+	return r.getPhase(snr) == phase
 }
 
 func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alpha1.SelfNodeRemediation) (ctrl.Result, error) {
@@ -253,7 +253,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 		}
 		org := snr.DeepCopy()
 		preRebootCompleted := preRebootCompletedPhase
-		snr.Status.Phase = &preRebootCompleted
+		snr.Status.Phase = string(&preRebootCompleted)
 		if err := r.patchSnrStatus(snr, org); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -274,7 +274,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 		r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
 		org := snr.DeepCopy()
 		rebootCompleted := rebootCompletedPhase
-		snr.Status.Phase = &rebootCompleted
+		snr.Status.Phase = string(&rebootCompleted)
 		if err := r.patchSnrStatus(snr, org); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -336,7 +336,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 
 	org := snr.DeepCopy()
 	fencingCompleted := fencingCompletedPhase
-	snr.Status.Phase = &fencingCompleted
+	snr.Status.Phase = string(&fencingCompleted)
 	return ctrl.Result{}, r.patchSnrStatus(snr, org)
 }
 
