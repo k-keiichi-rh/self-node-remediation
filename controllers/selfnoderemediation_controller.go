@@ -251,7 +251,6 @@ func (r *SelfNodeRemediationReconciler) useOutOfServiceTaint(node *v1.Node, snr 
 		return 0, err
 	}
 
-	r.logger.Info("useOutOfServiceTaint check1")
 	// We can not control to delete node resources by the "out-of-service" taint
 	// So timer is used to avoid to keep waiting to complete
 	if !r.isResourceDeletionCompleted(node) {
@@ -262,7 +261,6 @@ func (r *SelfNodeRemediationReconciler) useOutOfServiceTaint(node *v1.Node, snr 
 		// if the timer is expired, exponential backoff is triggered
 		return 0, errors.New("Not ready to delete out-of-service taint")
 	}
-	r.logger.Info("useOutOfServiceTaint check2")
 
 	if err := r.removeOutOfServiceTaint(node); err != nil {
 		return 0, err
@@ -308,7 +306,6 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alph
 
 		return ctrl.Result{}, nil
 	}
-	r.logger.Info("remediateWithResourceRemoval() check1", "node name", node.Name)
 
 	r.logger.Info("fencing not completed yet, continuing remediation")
 
@@ -339,27 +336,20 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alph
 		return r.rebootIfNeeded(snr)
 	}
 
-	r.logger.Info("remediateWithResourceRemoval() check10", "node name", node.Name, "now", time.Now().String())
-
 	wasRebooted, timeLeft := r.wasNodeRebooted(snr)
 	if !wasRebooted {
 		return ctrl.Result{RequeueAfter: timeLeft}, nil
 	}
-	r.logger.Info("remediateWithResourceRemoval() check11", "node name", node.Name, "now", time.Now().String())
 
 	r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
 
 	// if err is non-nil, exponential backoff is triggred
 	// if err is nil and waitTime is not a 'zero' time, waiting for removing node resources for waitTime seconds
-	r.logger.Info("remediateWithResourceRemoval() check2", "node name", node.Name)
 	if waitTime, err := removeNodeResources(node, snr); err != nil {
-		r.logger.Info("remediateWithResourceRemoval() check3", "node name", node.Name)
 		return ctrl.Result{}, err
 	} else if waitTime != 0 {
-		r.logger.Info("remediateWithResourceRemoval() check4", "node name", node.Name, "waittime", waitTime)
 		return ctrl.Result{RequeueAfter: waitTime}, nil
 	}
-	r.logger.Info("remediateWithResourceRemoval() check5", "node name", node.Name)
 
 	fencingCompleted := fencingCompletedPhase
 	snr.Status.Phase = &fencingCompleted
@@ -394,12 +384,9 @@ func (r *SelfNodeRemediationReconciler) rebootIfNeeded(snr *v1alpha1.SelfNodeRem
 // if not, it will also return the remaining time for that to happen
 func (r *SelfNodeRemediationReconciler) wasNodeRebooted(snr *v1alpha1.SelfNodeRemediation) (bool, time.Duration) {
 	maxNodeRebootTime := snr.Status.TimeAssumedRebooted
-	r.logger.Info("wasNodeRebooted check1", "now", time.Now().String(), "maxNodeRebootTime", maxNodeRebootTime)
 	if maxNodeRebootTime.After(time.Now()) {
-		r.logger.Info("wasNodeRebooted check2", "now", time.Now().String(), "maxNodeRebootTime", maxNodeRebootTime)
 		return false, maxNodeRebootTime.Sub(time.Now()) + time.Second
 	}
-	r.logger.Info("wasNodeRebooted check3", "now", time.Now().String(), "maxNodeRebootTime", maxNodeRebootTime)
 
 	return true, 0
 }
@@ -719,27 +706,22 @@ func (r *SelfNodeRemediationReconciler) addOutOfServiceTaint(node *v1.Node) erro
 }
 
 func (r *SelfNodeRemediationReconciler) removeOutOfServiceTaint(node *v1.Node) error {
-	r.logger.Info("removeOutOfServiceTaint() check1", "node name", node.Name)
 
 	if !utils.TaintExists(node.Spec.Taints, OutOfServiceTaint) {
 		return nil
 	}
-	r.logger.Info("removeOutOfServiceTaint() check2", "node name", node.Name)
 
 	patch := client.MergeFrom(node.DeepCopy())
 	if taints, deleted := utils.DeleteTaint(node.Spec.Taints, OutOfServiceTaint); !deleted {
 		r.logger.Info("Failed to remove taint from node, taint not found", "node name", node.Name, "taint key", OutOfServiceTaint.Key, "taint effect", OutOfServiceTaint.Effect)
 		return nil
 	} else {
-		r.logger.Info("removeOutOfServiceTaint() check3", "node name", node.Name, "taints", taints)
 		node.Spec.Taints = taints
 	}
-	r.logger.Info("removeOutOfServiceTaint() check4", "node name", node.Name)
 	if err := r.Client.Patch(context.Background(), node, patch); err != nil {
 		r.logger.Error(err, "Failed to remove taint from node,", "node name", node.Name, "taint key", OutOfServiceTaint.Key, "taint effect", OutOfServiceTaint.Effect)
 		return err
 	}
-	r.logger.Info("removeOutOfServiceTaint() check5", "node name", node.Name)
 	return nil
 }
 
@@ -749,14 +731,11 @@ func (r *SelfNodeRemediationReconciler) isResourceDeletionCompleted(node *v1.Nod
 		r.logger.Error(err, "failed to get pod list")
 		return false
 	}
-	r.logger.Info("isResourceDeletionCompleted debug print check1")
 	for _, pod := range pods.Items {
-		r.logger.Info("isResourceDeletionCompleted debug print check2", "node name", node.Name, "pod name", pod)
 		if pod.Spec.NodeName == node.Name && r.isPodTerminating(&pod) {
 			return false
 		}
 	}
-	r.logger.Info("isResourceDeletionCompleted debug print check3")
 	volumeAttachments := &storagev1.VolumeAttachmentList{}
 	if err := r.Client.List(context.Background(), volumeAttachments); err != nil {
 		r.logger.Error(err, "failed to get volumeAttachments list")
@@ -767,18 +746,11 @@ func (r *SelfNodeRemediationReconciler) isResourceDeletionCompleted(node *v1.Nod
 			return false
 		}
 	}
-	r.logger.Info("isResourceDeletionCompleted debug print check4")
 
 	return true
 }
 
 func (r *SelfNodeRemediationReconciler) isPodTerminating(pod *v1.Pod) bool {
-	r.logger.Info("isPodTerminating() check1", "pod ts", pod.ObjectMeta.DeletionTimestamp)
-	if pod.ObjectMeta.DeletionTimestamp != nil {
-		r.logger.Info("isPodTerminating() check2", "pod ts", pod.ObjectMeta.DeletionTimestamp)
-	} else {
-		r.logger.Info("isPodTerminating() check3", "pod ts", pod.ObjectMeta.DeletionTimestamp)
-	}
 	return pod.ObjectMeta.DeletionTimestamp != nil
 }
 
