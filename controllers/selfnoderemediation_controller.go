@@ -177,6 +177,15 @@ func (r *SelfNodeRemediationReconciler) patchSnrStatus(changed, org *v1alpha1.Se
 	return nil
 }
 
+func (r *SelfNodeRemediationReconciler) updateSnrRemediationPhase(phase remediationPhase, snr *v1alpha1.SelfNodeRemediation) error {
+	org := snr.DeepCopy()
+	snr.Status.Phase = (*string)(&rebootCompleted)
+	if err := r.patchSnrStatus(snr, org); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *SelfNodeRemediationReconciler) getPhase(snr *v1alpha1.SelfNodeRemediation) remediationPhase {
 	if snr.Status.Phase == nil {
 		return fencingStartedPhase
@@ -251,10 +260,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 			//todo this also updates the node but we don't need it
 			return r.updateSnrStatus(node, snr)
 		}
-		org := snr.DeepCopy()
-		preRebootCompleted := preRebootCompletedPhase
-		snr.Status.Phase = (*string)(&preRebootCompleted)
-		if err := r.patchSnrStatus(snr, org); err != nil {
+		if err := r.updateSnrRemediationPhase(preRebootCompletedPhase, snr); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -272,10 +278,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 		}
 
 		r.logger.Info("TimeAssumedRebooted is old. The unhealthy node assumed to been rebooted", "node name", node.Name)
-		org := snr.DeepCopy()
-		rebootCompleted := rebootCompletedPhase
-		snr.Status.Phase = (*string)(&rebootCompleted)
-		if err := r.patchSnrStatus(snr, org); err != nil {
+		if err := r.updateSnrRemediationPhase(rebootCompletedPhase, snr); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -334,10 +337,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceDeletion(snr *v1alp
 
 	r.logger.Info("done deleting node resources", "node name", node.Name)
 
-	org := snr.DeepCopy()
-	fencingCompleted := fencingCompletedPhase
-	snr.Status.Phase = (*string)(&fencingCompleted)
-	return ctrl.Result{}, r.patchSnrStatus(snr, org)
+	return ctrl.Result{}, r.updateSnrRemediationPhase(fencingCompletedPhase, snr)
 }
 
 // rebootIfNeeded reboots the node if no reboot was performed so far
