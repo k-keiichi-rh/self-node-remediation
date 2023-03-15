@@ -786,7 +786,7 @@ func (r *SelfNodeRemediationReconciler) isResourceDeletionExpired(snr *v1alpha1.
 	waitTime := snr.Status.TimeAssumedRebooted.Add(300 * time.Second)
 
 	if waitTime.After(time.Now()) {
-		return false, waitTime.Sub(time.Now()) + time.Second
+		return false, 5 * time.Second
 	}
 
 	return true, 0
