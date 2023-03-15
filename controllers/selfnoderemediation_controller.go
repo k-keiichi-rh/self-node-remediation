@@ -773,6 +773,12 @@ func (r *SelfNodeRemediationReconciler) isResourceDeletionCompleted(node *v1.Nod
 }
 
 func (r *SelfNodeRemediationReconciler) isPodTerminating(pod *v1.Pod) bool {
+	r.logger.Info("isPodTerminating() check1", "pod ts", pod.ObjectMeta.DeletionTimestamp)
+	if pod.ObjectMeta.DeletionTimestamp != nil {
+		r.logger.Info("isPodTerminating() check2", "pod ts", pod.ObjectMeta.DeletionTimestamp)
+	} else {
+		r.logger.Info("isPodTerminating() check3", "pod ts", pod.ObjectMeta.DeletionTimestamp)
+	}
 	return pod.ObjectMeta.DeletionTimestamp != nil
 }
 
