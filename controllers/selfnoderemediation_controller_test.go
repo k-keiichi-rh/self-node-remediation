@@ -402,7 +402,7 @@ func isTaintExist(taintToMatch *v1.Taint) (bool, error) {
 		return false, err
 	}
 	for _, taint := range node.Spec.Taints {
-		fmt.Printf("isTaintExist() check1 taint key:%s effect:%s\n", taint.Key, taint.TaintEffect)
+		fmt.Printf("isTaintExist() check1 taint key:%s effect:%s\n", taint.Key, taint.Effect)
 		if taintToMatch.MatchTaint(&taint) {
 			return true, nil
 		}
