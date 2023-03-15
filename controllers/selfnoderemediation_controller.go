@@ -181,7 +181,7 @@ func (r *SelfNodeRemediationReconciler) getPhase(snr *v1alpha1.SelfNodeRemediati
 	if snr.Status.Phase == nil {
 		return fencingStartedPhase
 	}
-	return *snr.Status.Phase
+	return remediationPhase(*snr.Status.Phase)
 }
 
 func (r *SelfNodeRemediationReconciler) isAtRemediationPhase(snr *v1alpha1.SelfNodeRemediation, phase remediationPhase) bool {
