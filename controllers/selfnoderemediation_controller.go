@@ -179,7 +179,8 @@ func (r *SelfNodeRemediationReconciler) patchSnrStatus(changed, org *v1alpha1.Se
 
 func (r *SelfNodeRemediationReconciler) updateSnrRemediationPhase(phase remediationPhase, snr *v1alpha1.SelfNodeRemediation) error {
 	org := snr.DeepCopy()
-	snr.Status.Phase = (*string)(&rebootCompleted)
+	phaseString := string(phase)
+	snr.Status.Phase = &phaseString
 	if err := r.patchSnrStatus(snr, org); err != nil {
 		return err
 	}
