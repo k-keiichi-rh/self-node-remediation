@@ -3,7 +3,6 @@ package controllers_test
 import (
 	"context"
 	"time"
-	"fmt"
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -230,10 +229,9 @@ var _ = Describe("snr Controller", func() {
 
 				verifyOutOfServiceTaintExist()
 
-				// simulate the out-of-service taint by Pod GC Controller:
-				// it has NoExecute effect which evicts self node remediation pod
+				// simulate the out-of-service taint by Pod GC Controller
 				deleteTerminatingPod()
-				//deleteVolumeAttachment(vaName)
+				deleteVolumeAttachment(vaName)
 
 				verifyOutOfServiceTaintRemoved()
 
@@ -402,7 +400,6 @@ func isTaintExist(taintToMatch *v1.Taint) (bool, error) {
 		return false, err
 	}
 	for _, taint := range node.Spec.Taints {
-		fmt.Printf("isTaintExist() check1 taint key:%s effect:%s\n", taint.Key, taint.Effect)
 		if taintToMatch.MatchTaint(&taint) {
 			return true, nil
 		}
