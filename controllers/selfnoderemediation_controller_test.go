@@ -3,6 +3,7 @@ package controllers_test
 import (
 	"context"
 	"time"
+	"fmt"
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -401,6 +402,7 @@ func isTaintExist(taintToMatch *v1.Taint) (bool, error) {
 		return false, err
 	}
 	for _, taint := range node.Spec.Taints {
+		fmt.Printf("isTaintExist() check1", "taint", taint)
 		if taintToMatch.MatchTaint(&taint) {
 			return true, nil
 		}
