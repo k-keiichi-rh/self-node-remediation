@@ -719,21 +719,27 @@ func (r *SelfNodeRemediationReconciler) addOutOfServiceTaint(node *v1.Node) erro
 }
 
 func (r *SelfNodeRemediationReconciler) removeOutOfServiceTaint(node *v1.Node) error {
+	r.logger.Info("removeOutOfServiceTaint() check1", "node name", node.Name)
+
 	if !utils.TaintExists(node.Spec.Taints, OutOfServiceTaint) {
 		return nil
 	}
+	r.logger.Info("removeOutOfServiceTaint() check2", "node name", node.Name)
 
 	patch := client.MergeFrom(node.DeepCopy())
 	if taints, deleted := utils.DeleteTaint(node.Spec.Taints, OutOfServiceTaint); !deleted {
 		r.logger.Info("Failed to remove taint from node, taint not found", "node name", node.Name, "taint key", OutOfServiceTaint.Key, "taint effect", OutOfServiceTaint.Effect)
 		return nil
 	} else {
+		r.logger.Info("removeOutOfServiceTaint() check3", "node name", node.Name, "taints", taints)
 		node.Spec.Taints = taints
 	}
+	r.logger.Info("removeOutOfServiceTaint() check4", "node name", node.Name)
 	if err := r.Client.Patch(context.Background(), node, patch); err != nil {
 		r.logger.Error(err, "Failed to remove taint from node,", "node name", node.Name, "taint key", OutOfServiceTaint.Key, "taint effect", OutOfServiceTaint.Effect)
 		return err
 	}
+	r.logger.Info("removeOutOfServiceTaint() check5", "node name", node.Name)
 	return nil
 }
 
