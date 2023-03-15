@@ -356,7 +356,7 @@ func (r *SelfNodeRemediationReconciler) remediateWithResourceRemoval(snr *v1alph
 		r.logger.Info("remediateWithResourceRemoval() check3", "node name", node.Name)
 		return ctrl.Result{}, err
 	} else if waitTime != 0 {
-		r.logger.Info("remediateWithResourceRemoval() check4", "node name", node.Name)
+		r.logger.Info("remediateWithResourceRemoval() check4", "node name", node.Name, "waittime", waitTime)
 		return ctrl.Result{RequeueAfter: waitTime}, nil
 	}
 	r.logger.Info("remediateWithResourceRemoval() check5", "node name", node.Name)
