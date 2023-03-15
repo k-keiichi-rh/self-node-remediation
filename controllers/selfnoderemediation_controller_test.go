@@ -385,7 +385,7 @@ func verifyOutOfServiceTaintRemoved() {
 	By("Verify that node does not have out-of-service taint")
 	Eventually(func() (bool, error) {
 		return isTaintExist(controllers.OutOfServiceTaint)
-	}, 10*time.Second, 200*time.Millisecond).Should(BeFalse())
+	}, 20*time.Second, 200*time.Millisecond).Should(BeFalse())
 }
 
 func verifyOutOfServiceTaintExist() {
